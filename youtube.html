@@ -1,0 +1,1550 @@
+<!DOCTYPE html>
+<html lang="zh-TW" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PureStream | 專屬無干擾 YouTube 音樂播放器</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter & Noto Sans TC & JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'Noto Sans TC', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        obsidian: {
+                            950: '#090a0f',
+                            900: '#10121a',
+                            800: '#181b26',
+                            700: '#232736',
+                            600: '#32384d'
+                        },
+                        amber: {
+                            450: '#f59e0b',
+                            550: '#d97706'
+                        }
+                    },
+                    animation: {
+                        'spin-slow': 'spin 12s linear infinite',
+                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            background-color: #090a0f;
+            color: #f3f4f6;
+            overflow-x: hidden;
+        }
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #10121a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #232736;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #f59e0b;
+        }
+        /* Equalizer Animation */
+        @keyframes eq-bar {
+            0%, 100% { height: 20%; }
+            50% { height: 95%; }
+        }
+        .eq-bar-1 { animation: eq-bar 0.8s ease-in-out infinite; }
+        .eq-bar-2 { animation: eq-bar 0.6s ease-in-out infinite 0.2s; }
+        .eq-bar-3 { animation: eq-bar 0.9s ease-in-out infinite 0.4s; }
+        .eq-bar-4 { animation: eq-bar 0.7s ease-in-out infinite 0.1s; }
+        .eq-paused span {
+            animation-play-state: paused !important;
+            height: 20% !important;
+        }
+        /* Range Slider Styling */
+        input[type=range] {
+            -webkit-appearance: none;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 14px;
+            width: 14px;
+            border-radius: 50%;
+            background: #f59e0b;
+            cursor: pointer;
+            margin-top: -5px;
+            box-shadow: 0 0 8px rgba(245, 158, 11, 0.6);
+            transition: transform 0.15s ease;
+        }
+        input[type=range]::-webkit-slider-thumb:hover {
+            transform: scale(1.25);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #232736;
+            border-radius: 2px;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col selection:bg-amber-500 selection:text-obsidian-950">
+
+    <!-- Top Navigation Bar -->
+    <header class="border-b border-obsidian-800 bg-obsidian-950/90 backdrop-blur-md sticky top-0 z-30">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+            <!-- Brand -->
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center shadow-lg shadow-amber-500/20">
+                    <i data-lucide="disc-3" class="w-6 h-6 text-obsidian-950"></i>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h1 class="font-bold text-lg tracking-tight text-white">PureStream</h1>
+                        <span class="text-[11px] font-mono uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                            No-Algo Guard
+                        </span>
+                    </div>
+                    <p class="text-xs text-gray-400 hidden sm:block">專屬無干擾音樂清單 · 嚴格鎖定指定歌手連續播放</p>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex items-center gap-2 sm:gap-3">
+                <button onclick="openTransferModal()" class="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-obsidian-800 hover:bg-obsidian-700 text-xs sm:text-sm font-medium text-gray-200 border border-obsidian-700 transition">
+                    <i data-lucide="share-2" class="w-4 h-4 text-amber-400"></i>
+                    <span>備份 / 轉移歌單</span>
+                </button>
+                <button onclick="openHelpModal()" class="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-obsidian-800 hover:bg-obsidian-700 text-xs sm:text-sm font-medium text-gray-200 border border-obsidian-700 transition" title="無廣告與背景播放小撇步">
+                    <i data-lucide="shield-check" class="w-4 h-4 text-emerald-400"></i>
+                    <span class="hidden md:inline">純淨播放指南</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Grid -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+
+            <!-- LEFT COLUMN: Player & Controls (5 cols on desktop) -->
+            <section class="lg:col-span-5 lg:sticky lg:top-22 flex flex-col gap-5">
+                
+                <!-- Player Card -->
+                <div class="bg-obsidian-900 border border-obsidian-800 rounded-2xl overflow-hidden shadow-2xl">
+                    
+                    <!-- Player Header Bar -->
+                    <div class="px-4 py-3 bg-obsidian-950/60 border-b border-obsidian-800 flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <span id="playerStatusDot" class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                            <span id="playerStatusText" class="text-xs font-mono text-gray-400">READY · 佇列攔截保護中</span>
+                        </div>
+                        <button onclick="toggleAudioFocusMode()" id="focusModeBtn" class="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md bg-obsidian-800 hover:bg-obsidian-700 text-gray-300 border border-obsidian-700 transition">
+                            <i data-lucide="eye-off" class="w-3.5 h-3.5 text-amber-400"></i>
+                            <span id="focusModeText">純音訊專注模式</span>
+                        </button>
+                    </div>
+
+                    <!-- Video / Vinyl Stage Container -->
+                    <div class="relative w-full aspect-video bg-obsidian-950 overflow-hidden group">
+                        <!-- Actual YouTube IFrame Container -->
+                        <div id="ytPlayerWrapper" class="w-full h-full transition-opacity duration-300">
+                            <div id="youtube-player" class="w-full h-full"></div>
+                        </div>
+
+                        <!-- Audio-Only Vinyl Visualizer Overlay (Hidden by default) -->
+                        <div id="vinylOverlay" class="hidden absolute inset-0 bg-gradient-to-b from-obsidian-900 via-obsidian-950 to-obsidian-950 flex flex-col items-center justify-center p-6 z-10">
+                            <div class="relative flex items-center justify-center">
+                                <!-- Outer Glow -->
+                                <div id="vinylGlow" class="absolute -inset-4 rounded-full bg-amber-500/15 blur-xl transition-opacity duration-500 opacity-0"></div>
+                                <!-- Spinning Vinyl Disc -->
+                                <div id="vinylDisc" class="w-36 h-36 sm:w-44 sm:h-44 rounded-full bg-obsidian-950 border-4 border-obsidian-700 shadow-2xl flex items-center justify-center relative overflow-hidden">
+                                    <!-- Vinyl Grooves -->
+                                    <div class="absolute inset-2 rounded-full border border-obsidian-800/80 pointer-events-none"></div>
+                                    <div class="absolute inset-6 rounded-full border border-obsidian-800/60 pointer-events-none"></div>
+                                    <div class="absolute inset-10 rounded-full border border-obsidian-800/80 pointer-events-none"></div>
+                                    <!-- Center Cover Thumbnail -->
+                                    <img id="vinylThumb" src="https://placehold.co/200x200/181b26/f59e0b?text=PureStream" alt="Cover" class="w-16 h-16 sm:w-20 sm:h-20 rounded-full object-cover border-2 border-amber-500/40" />
+                                    <!-- Center Hole -->
+                                    <div class="w-3.5 h-3.5 rounded-full bg-obsidian-950 border border-obsidian-600 absolute"></div>
+                                </div>
+                            </div>
+                            <p class="mt-4 text-xs font-mono text-amber-400/90 tracking-widest uppercase flex items-center gap-2">
+                                <i data-lucide="radio" class="w-3.5 h-3.5"></i>
+                                Audio Focus Mode · 音訊持續背景串流中
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Current Track Metadata & Controls -->
+                    <div class="p-5 flex flex-col gap-4">
+                        <!-- Song Title & Artist -->
+                        <div class="flex items-start justify-between gap-4">
+                            <div class="min-w-0 flex-1">
+                                <div class="flex items-center gap-2 mb-1">
+                                    <span id="currentArtistBadge" class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                                        <i data-lucide="mic-2" class="w-3 h-3"></i>
+                                        <span id="nowPlayingArtist">尚未播放</span>
+                                    </span>
+                                    <span id="nowPlayingIndex" class="text-xs font-mono text-gray-500">-- / --</span>
+                                </div>
+                                <h2 id="nowPlayingTitle" class="text-lg sm:text-xl font-bold text-white truncate" title="請選擇或新增歌曲開始播放">
+                                    請點擊下方播放鍵開始聆聽
+                                </h2>
+                            </div>
+
+                            <!-- Animated Equalizer -->
+                            <div id="equalizerIndicator" class="eq-paused flex items-end gap-1 h-6 pt-1 shrink-0">
+                                <span class="w-1 bg-amber-400 rounded-full eq-bar-1"></span>
+                                <span class="w-1 bg-amber-400 rounded-full eq-bar-2"></span>
+                                <span class="w-1 bg-amber-400 rounded-full eq-bar-3"></span>
+                                <span class="w-1 bg-amber-400 rounded-full eq-bar-4"></span>
+                            </div>
+                        </div>
+
+                        <!-- Progress Scrubber -->
+                        <div class="flex flex-col gap-1.5">
+                            <input type="range" id="progressBar" min="0" max="100" value="0" step="0.1" class="w-full" oninput="onSeekInput(this.value)" onchange="onSeekChange(this.value)">
+                            <div class="flex justify-between text-[11px] font-mono text-gray-400">
+                                <span id="currentTimeText">00:00</span>
+                                <span id="durationTimeText">00:00</span>
+                            </div>
+                        </div>
+
+                        <!-- Main Transport Buttons -->
+                        <div class="flex items-center justify-between pt-1">
+                            <!-- Shuffle Toggle -->
+                            <button onclick="toggleShuffle()" id="shuffleBtn" class="p-2.5 rounded-xl text-gray-400 hover:text-white hover:bg-obsidian-800 transition relative" title="隨機播放 (Shuffle)">
+                                <i data-lucide="shuffle" class="w-4 h-4"></i>
+                            </button>
+
+                            <!-- Prev / Play / Next -->
+                            <div class="flex items-center gap-3">
+                                <button onclick="playPrevious()" class="p-3 rounded-xl bg-obsidian-800 hover:bg-obsidian-700 text-gray-200 hover:text-white transition active:scale-95" title="上一首 (Previous)">
+                                    <i data-lucide="skip-back" class="w-5 h-5"></i>
+                                </button>
+
+                                <button onclick="togglePlayPause()" id="playPauseBtn" class="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 hover:from-amber-300 hover:to-amber-500 text-obsidian-950 flex items-center justify-center shadow-lg shadow-amber-500/25 transition transform active:scale-95" title="播放 / 暫停 (Space)">
+                                    <i data-lucide="play" id="playPauseIcon" class="w-6 h-6 fill-current ml-0.5"></i>
+                                </button>
+
+                                <button onclick="playNext(true)" class="p-3 rounded-xl bg-obsidian-800 hover:bg-obsidian-700 text-gray-200 hover:text-white transition active:scale-95" title="下一首 (Next)">
+                                    <i data-lucide="skip-forward" class="w-5 h-5"></i>
+                                </button>
+                            </div>
+
+                            <!-- Loop Mode Toggle -->
+                            <button onclick="cycleLoopMode()" id="loopBtn" class="p-2.5 rounded-xl text-amber-400 bg-amber-500/10 hover:bg-obsidian-800 transition relative" title="循環模式：全清單循環">
+                                <i data-lucide="repeat" id="loopIcon" class="w-4 h-4"></i>
+                                <span id="loopOneBadge" class="hidden absolute top-1 right-1 text-[9px] font-mono font-bold bg-amber-400 text-obsidian-950 rounded-full w-3.5 h-3.5 flex items-center justify-center">1</span>
+                            </button>
+                        </div>
+
+                        <!-- Volume & Auto-Skip Info Footer -->
+                        <div class="pt-3 border-t border-obsidian-800 flex items-center justify-between gap-4">
+                            <div class="flex items-center gap-2 flex-1 max-w-[180px]">
+                                <button onclick="toggleMute()" id="muteBtn" class="text-gray-400 hover:text-white transition">
+                                    <i data-lucide="volume-2" id="volumeIcon" class="w-4 h-4"></i>
+                                </button>
+                                <input type="range" id="volumeSlider" min="0" max="100" value="85" class="w-full" oninput="changeVolume(this.value)">
+                                <span id="volumeValue" class="text-[11px] font-mono text-gray-400 w-8 text-right">85%</span>
+                            </div>
+
+                            <div class="text-[11px] text-gray-400 flex items-center gap-1.5" title="只會播放目前篩選清單內的曲目，絕不跳轉至外部推薦影片">
+                                <i data-lucide="lock" class="w-3.5 h-3.5 text-amber-400"></i>
+                                <span>已阻擋非清單推薦</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Add Song Card -->
+                <div class="bg-obsidian-900 border border-obsidian-800 rounded-2xl p-5 shadow-xl">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="text-sm font-semibold text-white flex items-center gap-2">
+                            <i data-lucide="plus-circle" class="w-4 h-4 text-amber-400"></i>
+                            <span>新增歌曲至專屬清單 (Add Track)</span>
+                        </h3>
+                        <span class="text-[11px] text-gray-400">支援貼上網址自動辨識</span>
+                    </div>
+
+                    <form id="addTrackForm" onsubmit="handleAddTrack(event)" class="flex flex-col gap-3">
+                        <!-- URL Input -->
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-1">YouTube 影片網址或 ID (必填)</label>
+                            <div class="flex gap-2">
+                                <input type="text" id="ytUrlInput" required placeholder="貼上 https://www.youtube.com/watch?v=... 或 youtu.be/..." 
+                                    oninput="handleUrlPasteAutoFetch(this.value)"
+                                    class="flex-1 bg-obsidian-950 border border-obsidian-700 focus:border-amber-400 rounded-xl px-3.5 py-2 text-sm text-white placeholder-gray-500 focus:outline-none transition">
+                                <button type="button" onclick="fetchMetadataFromInput()" id="fetchMetaBtn" class="px-3 py-2 rounded-xl bg-obsidian-800 hover:bg-obsidian-700 text-amber-400 border border-obsidian-700 text-xs font-medium flex items-center gap-1.5 shrink-0 transition" title="自動抓取 YouTube 標題與頻道名稱">
+                                    <i data-lucide="wand-2" class="w-3.5 h-3.5"></i>
+                                    <span>自動抓取資訊</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Artist & Song Title Row -->
+                        <div class="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                            <div class="sm:col-span-5">
+                                <label class="block text-xs text-gray-400 mb-1">歌手名稱 (Artist)</label>
+                                <div class="relative">
+                                    <input type="text" id="artistInput" list="existingArtistsList" required placeholder="例如：周杰倫 / 伍佰" 
+                                        class="w-full bg-obsidian-950 border border-obsidian-700 focus:border-amber-400 rounded-xl px-3.5 py-2 text-sm text-white placeholder-gray-500 focus:outline-none transition">
+                                    <datalist id="existingArtistsList"></datalist>
+                                </div>
+                            </div>
+                            <div class="sm:col-span-7">
+                                <label class="block text-xs text-gray-400 mb-1">歌曲名稱 (Song Title)</label>
+                                <input type="text" id="titleInput" required placeholder="自動帶入或手動輸入歌名..." 
+                                    class="w-full bg-obsidian-950 border border-obsidian-700 focus:border-amber-400 rounded-xl px-3.5 py-2 text-sm text-white placeholder-gray-500 focus:outline-none transition">
+                            </div>
+                        </div>
+
+                        <button type="submit" class="mt-1 w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-obsidian-950 font-semibold text-sm flex items-center justify-center gap-2 shadow-lg shadow-amber-500/15 transition active:scale-[0.99]">
+                            <i data-lucide="list-plus" class="w-4 h-4"></i>
+                            <span>加入我的音樂清單</span>
+                        </button>
+                    </form>
+                </div>
+
+            </section>
+
+            <!-- RIGHT COLUMN: Artist Whitelist Filter & Playlist Queue (7 cols on desktop) -->
+            <section class="lg:col-span-7 flex flex-col gap-5">
+
+                <!-- Strict Artist Whitelist Bar -->
+                <div class="bg-obsidian-900 border border-obsidian-800 rounded-2xl p-5 shadow-xl">
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+                        <div class="flex items-center gap-2">
+                            <i data-lucide="user-check" class="w-4 h-4 text-amber-400"></i>
+                            <h3 class="text-sm font-semibold text-white">歌手白名單鎖定 (Strict Artist Filter)</h3>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span id="activeFilterHint" class="text-xs text-amber-400/90 font-mono">目前播放：全部清單內歌手</span>
+                            <button onclick="resetArtistFilters()" id="resetArtistBtn" class="hidden text-xs px-2 py-0.5 rounded bg-obsidian-800 hover:bg-obsidian-700 text-gray-300 transition">
+                                顯示全部
+                            </button>
+                        </div>
+                    </div>
+                    <p class="text-xs text-gray-400 mb-3">
+                        點選下方歌手標籤即可**嚴格鎖定只播放該歌手的歌曲**（可複選），絕不穿插其他歌手的音樂：
+                    </p>
+
+                    <!-- Dynamic Artist Chips Container -->
+                    <div id="artistChipsContainer" class="flex flex-wrap gap-2">
+                        <!-- Rendered by JS -->
+                    </div>
+                </div>
+
+                <!-- Playlist Queue Card -->
+                <div class="bg-obsidian-900 border border-obsidian-800 rounded-2xl p-5 shadow-xl flex flex-col min-h-[480px]">
+                    <!-- Queue Header & Search -->
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-obsidian-800">
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <h3 class="text-base font-bold text-white">專屬播放佇列 (Playlist Queue)</h3>
+                                <span id="queueCountBadge" class="px-2 py-0.5 text-xs font-mono rounded-full bg-obsidian-800 text-amber-400 border border-obsidian-700">
+                                    0 首歌曲
+                                </span>
+                            </div>
+                            <p class="text-xs text-gray-400 mt-0.5">點擊任一曲目立即播放 · 支援上下排序與單曲刪除</p>
+                        </div>
+
+                        <!-- Search & Clear Controls -->
+                        <div class="flex items-center gap-2">
+                            <div class="relative flex-1 sm:w-52">
+                                <i data-lucide="search" class="w-4 h-4 text-gray-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+                                <input type="text" id="searchInput" oninput="renderPlaylist()" placeholder="搜尋歌名或歌手..." 
+                                    class="w-full bg-obsidian-950 border border-obsidian-700 focus:border-amber-400 rounded-xl pl-9 pr-3 py-1.5 text-xs text-white placeholder-gray-500 focus:outline-none transition">
+                            </div>
+
+                            <button onclick="openClearConfirmModal()" class="px-2.5 py-1.5 rounded-xl bg-obsidian-800 hover:bg-red-500/20 text-gray-400 hover:text-red-300 border border-obsidian-700 hover:border-red-500/30 text-xs flex items-center gap-1 transition shrink-0" title="清空目前清單或還原預設示範清單">
+                                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                                <span class="hidden sm:inline">管理清單</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Track List Container -->
+                    <div id="playlistContainer" class="flex-1 divide-y divide-obsidian-800/60 overflow-y-auto max-h-[540px] pr-1 mt-2">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+
+            </section>
+        </div>
+    </main>
+
+    <!-- Toast Notification Container -->
+    <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none px-4 sm:px-0"></div>
+
+    <!-- MODAL 1: Backup / Import / Share Code Modal -->
+    <div id="transferModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-obsidian-900 border border-obsidian-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl flex flex-col gap-4">
+            <div class="flex items-center justify-between border-b border-obsidian-800 pb-3">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="folder-sync" class="w-5 h-5 text-amber-400"></i>
+                    <h3 class="text-base font-bold text-white">備份、匯出與跨裝置轉移歌單</h3>
+                </div>
+                <button onclick="closeTransferModal()" class="text-gray-400 hover:text-white p-1">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <p class="text-xs text-gray-300 leading-relaxed">
+                您的歌單會自動保存在目前瀏覽器中。若要將歌單轉移到手機、其他電腦或永久備份，您可以下載 <code class="text-amber-400">.json</code> 備份檔，或複製下方轉移代碼：
+            </p>
+
+            <!-- Export / Import JSON File Buttons -->
+            <div class="grid grid-cols-2 gap-3">
+                <button onclick="exportJsonFile()" class="py-2.5 px-4 rounded-xl bg-obsidian-800 hover:bg-obsidian-700 border border-obsidian-600 text-xs font-medium text-white flex items-center justify-center gap-2 transition">
+                    <i data-lucide="download" class="w-4 h-4 text-amber-400"></i>
+                    <span>下載 JSON 備份檔</span>
+                </button>
+                <label class="py-2.5 px-4 rounded-xl bg-obsidian-800 hover:bg-obsidian-700 border border-obsidian-600 text-xs font-medium text-white flex items-center justify-center gap-2 cursor-pointer transition">
+                    <i data-lucide="upload" class="w-4 h-4 text-emerald-400"></i>
+                    <span>匯入 JSON 備份檔</span>
+                    <input type="file" accept=".json" onchange="importJsonFile(event)" class="hidden">
+                </label>
+            </div>
+
+            <!-- Shareable Text Code Area -->
+            <div class="flex flex-col gap-2 pt-2 border-t border-obsidian-800">
+                <div class="flex items-center justify-between">
+                    <label class="text-xs font-medium text-gray-300">歌單快速轉移代碼 (JSON 格式)</label>
+                    <button onclick="copyShareCode()" class="text-xs text-amber-400 hover:text-amber-300 flex items-center gap-1">
+                        <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                        <span>複製代碼</span>
+                    </button>
+                </div>
+                <textarea id="shareCodeTextarea" rows="5" class="w-full bg-obsidian-950 border border-obsidian-700 rounded-xl p-3 text-xs font-mono text-gray-300 focus:border-amber-400 focus:outline-none" placeholder="在此貼上歌單 JSON 代碼即可匯入..."></textarea>
+                <button onclick="importFromTextarea()" class="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-obsidian-950 font-semibold text-xs transition">
+                    從上方代碼載入並覆蓋歌單
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 2: Clear / Reset Playlist Modal -->
+    <div id="clearConfirmModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-obsidian-900 border border-obsidian-700 rounded-2xl max-w-md w-full p-6 shadow-2xl flex flex-col gap-4">
+            <div class="flex items-center justify-between border-b border-obsidian-800 pb-3">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="sliders-horizontal" class="w-5 h-5 text-amber-400"></i>
+                    <h3 class="text-base font-bold text-white">管理播放清單</h3>
+                </div>
+                <button onclick="closeClearConfirmModal()" class="text-gray-400 hover:text-white p-1">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <p class="text-xs text-gray-300 leading-relaxed">
+                您可以選擇將目前歌單完全清空（從零建立您的專屬歌單），或是載入內建的華語經典示範歌單：
+            </p>
+
+            <div class="flex flex-col gap-2.5 pt-1">
+                <button onclick="clearAllTracks()" class="w-full py-2.5 px-4 rounded-xl bg-red-500/15 hover:bg-red-500/25 border border-red-500/30 text-red-300 text-xs font-semibold flex items-center justify-center gap-2 transition">
+                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    <span>清空所有歌曲 (建立空白清單)</span>
+                </button>
+                <button onclick="restoreDemoPlaylist()" class="w-full py-2.5 px-4 rounded-xl bg-obsidian-800 hover:bg-obsidian-700 border border-obsidian-600 text-gray-200 text-xs font-medium flex items-center justify-center gap-2 transition">
+                    <i data-lucide="rotate-ccw" class="w-4 h-4 text-amber-400"></i>
+                    <span>還原預設示範歌單 (Demo Playlist)</span>
+                </button>
+                <button onclick="closeClearConfirmModal()" class="w-full py-2 text-xs text-gray-400 hover:text-white transition">
+                    取消
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 3: Pure Playback & Ad-Free Guide Modal -->
+    <div id="helpModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-obsidian-900 border border-obsidian-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl flex flex-col gap-4">
+            <div class="flex items-center justify-between border-b border-obsidian-800 pb-3">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="shield-check" class="w-5 h-5 text-emerald-400"></i>
+                    <h3 class="text-base font-bold text-white">PureStream 純淨無干擾播放機制說明</h3>
+                </div>
+                <button onclick="closeHelpModal()" class="text-gray-400 hover:text-white p-1">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <div class="space-y-3 text-xs text-gray-300 leading-relaxed">
+                <div class="p-3 rounded-xl bg-obsidian-950 border border-obsidian-800">
+                    <h4 class="font-semibold text-amber-400 mb-1">1. 100% 杜絕非指定歌手與演算法亂跳</h4>
+                    <p>一般 YouTube 自動播放會根據演算法推播其他歌手的歌。本程式透過自訂佇列攔截器（Custom Queue Interceptor）監聽影片結束狀態，在歌曲結束瞬間強制切換至您清單中的下一首歌，並提供「**歌手白名單鎖定**」功能，確保只會出現您勾選的歌手。</p>
+                </div>
+                <div class="p-3 rounded-xl bg-obsidian-950 border border-obsidian-800">
+                    <h4 class="font-semibold text-emerald-400 mb-1">2. 隱私強化無廣告干擾模式 (youtube-nocookie)</h4>
+                    <p>本播放器採用官方 <code class="text-emerald-300">youtube-nocookie.com</code> 嵌入式協定，不會寫入個人化廣告追蹤 Cookie，大幅減少商業插播干擾。若搭配 <strong>Brave 瀏覽器</strong> 或安裝 <strong>uBlock Origin</strong> 擴充功能開啟本網頁，即可達成 100% 零廣告且支援手機鎖定螢幕背景播放！</p>
+                </div>
+                <div class="p-3 rounded-xl bg-obsidian-950 border border-obsidian-800">
+                    <h4 class="font-semibold text-blue-400 mb-1">3. 損壞或禁止嵌入影片自動跳過</h4>
+                    <p>若遇到部分版權限制無法在外部網頁播放的 MV，系統偵測到錯誤代碼後會在 1 秒內自動跳過並播放下一首，絕不中斷您的聽歌體驗。</p>
+                </div>
+            </div>
+
+            <button onclick="closeHelpModal()" class="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-obsidian-950 font-semibold text-xs transition">
+                了解，開始享受音樂
+            </button>
+        </div>
+    </div>
+
+    <!-- YouTube IFrame API & Application Logic -->
+    <script>
+        /**************************************************************
+         * 1. DEFAULT DEMO PLAYLIST (Reliable Embeddable Music Tracks)
+         **************************************************************/
+        const DEFAULT_DEMO_PLAYLIST = [
+            {
+                id: 'track-1',
+                videoId: 'sHD_z90ZKV0',
+                title: '那些年 (Those Years)',
+                artist: '胡夏'
+            },
+            {
+                id: 'track-2',
+                videoId: 'Y2ge3KrdeWs',
+                title: '小幸運 (A Little Happiness)',
+                artist: '田馥甄 Hebe'
+            },
+            {
+                id: 'track-3',
+                videoId: '9q7JOQfcJQM',
+                title: '突然好想你 (Suddenly Missing You)',
+                artist: '五月天 Mayday'
+            },
+            {
+                id: 'track-4',
+                videoId: 'HQ_mU73VhEQ',
+                title: '後來的我們 (Here, After, Us)',
+                artist: '五月天 Mayday'
+            },
+            {
+                id: 'track-5',
+                videoId: 'G97_rOdHcnY',
+                title: '寂寞寂寞就好 (Leave Me Alone)',
+                artist: '田馥甄 Hebe'
+            },
+            {
+                id: 'track-6',
+                videoId: 'L229QDxDakU',
+                title: '光年之外 (Light Years Away)',
+                artist: '鄧紫棋 G.E.M.'
+            }
+        ];
+
+        const STORAGE_KEY_PLAYLIST = 'purestream_yt_playlist_v1';
+        const STORAGE_KEY_ARTISTS = 'purestream_yt_selected_artists_v1';
+        const STORAGE_KEY_SETTINGS = 'purestream_yt_settings_v1';
+
+        /**************************************************************
+         * 2. APPLICATION STATE
+         **************************************************************/
+        let playlist = [];
+        let selectedArtists = []; // Empty array = All artists in playlist are allowed
+        let currentTrackId = null;
+        let isPlaying = false;
+        let isShuffle = false;
+        let loopMode = 'all'; // 'all' | 'one' | 'off'
+        let isAudioFocusMode = false;
+        let isSeeking = false;
+        let progressInterval = null;
+        let ytPlayer = null;
+        let isPlayerReady = false;
+
+        /**************************************************************
+         * 3. INITIALIZATION & LOCAL STORAGE
+         **************************************************************/
+        window.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            loadStateFromStorage();
+            renderArtistChips();
+            renderPlaylist();
+            updateTransportButtonsUI();
+            loadYouTubeIFrameAPI();
+
+            // Spacebar shortcut for play/pause when not typing in input
+            window.addEventListener('keydown', (e) => {
+                if (e.code === 'Space' && !['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) {
+                    e.preventDefault();
+                    togglePlayPause();
+                }
+            });
+        });
+
+        function loadStateFromStorage() {
+            try {
+                const savedPlaylist = localStorage.getItem(STORAGE_KEY_PLAYLIST);
+                if (savedPlaylist) {
+                    playlist = JSON.parse(savedPlaylist);
+                } else {
+                    playlist = [...DEFAULT_DEMO_PLAYLIST];
+                    saveStateToStorage();
+                }
+
+                const savedArtists = localStorage.getItem(STORAGE_KEY_ARTISTS);
+                if (savedArtists) {
+                    selectedArtists = JSON.parse(savedArtists);
+                }
+
+                const savedSettings = localStorage.getItem(STORAGE_KEY_SETTINGS);
+                if (savedSettings) {
+                    const parsed = JSON.parse(savedSettings);
+                    isShuffle = !!parsed.isShuffle;
+                    loopMode = parsed.loopMode || 'all';
+                    isAudioFocusMode = !!parsed.isAudioFocusMode;
+                }
+            } catch (err) {
+                console.error('Failed to read localStorage:', err);
+                playlist = [...DEFAULT_DEMO_PLAYLIST];
+            }
+        }
+
+        function saveStateToStorage() {
+            try {
+                localStorage.setItem(STORAGE_KEY_PLAYLIST, JSON.stringify(playlist));
+                localStorage.setItem(STORAGE_KEY_ARTISTS, JSON.stringify(selectedArtists));
+                localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify({
+                    isShuffle,
+                    loopMode,
+                    isAudioFocusMode
+                }));
+            } catch (err) {
+                console.error('Failed to save to localStorage:', err);
+            }
+        }
+
+        /**************************************************************
+         * 4. YOUTUBE IFRAME API INTEGRATION (NO-COOKIE & INTERCEPTOR)
+         **************************************************************/
+        function loadYouTubeIFrameAPI() {
+            const tag = document.createElement('script');
+            tag.src = "https://www.youtube.com/iframe_api";
+            const firstScriptTag = document.getElementsByTagName('script')[0];
+            firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+        }
+
+        // Called automatically by YouTube API script
+        window.onYouTubeIframeAPIReady = function() {
+            const activeQueue = getFilteredQueue();
+            const firstVideoId = activeQueue.length > 0 ? activeQueue[0].videoId : '';
+            if (activeQueue.length > 0) {
+                currentTrackId = activeQueue[0].id;
+            }
+
+            ytPlayer = new YT.Player('youtube-player', {
+                height: '100%',
+                width: '100%',
+                host: 'https://www.youtube-nocookie.com',
+                videoId: firstVideoId,
+                playerVars: {
+                    autoplay: 0,
+                    controls: 1,
+                    rel: 0,            // Restrict related videos to same channel
+                    modestbranding: 1, // Minimal YouTube logo
+                    iv_load_policy: 3, // Hide video annotations
+                    playsinline: 1,    // Play inline on iOS
+                    enablejsapi: 1
+                },
+                events: {
+                    onReady: onPlayerReady,
+                    onStateChange: onPlayerStateChange,
+                    onError: onPlayerError
+                }
+            });
+        };
+
+        function onPlayerReady(event) {
+            isPlayerReady = true;
+            event.target.setVolume(85);
+            applyAudioFocusUI();
+
+            const activeQueue = getFilteredQueue();
+            if (activeQueue.length > 0) {
+                const track = activeQueue.find(t => t.id === currentTrackId) || activeQueue[0];
+                currentTrackId = track.id;
+                updateNowPlayingUI(track);
+                renderPlaylist();
+            }
+            startProgressTimer();
+        }
+
+        function onPlayerStateChange(event) {
+            const state = event.data;
+            const statusDot = document.getElementById('playerStatusDot');
+            const statusText = document.getElementById('playerStatusText');
+
+            if (state === YT.PlayerState.PLAYING) {
+                isPlaying = true;
+                statusDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse';
+                statusText.textContent = 'PLAYING · 歌手白名單鎖定中';
+                updatePlayPauseUI(true);
+            } else if (state === YT.PlayerState.PAUSED) {
+                isPlaying = false;
+                statusDot.className = 'w-2.5 h-2.5 rounded-full bg-amber-400';
+                statusText.textContent = 'PAUSED · 已暫停';
+                updatePlayPauseUI(false);
+            } else if (state === YT.PlayerState.BUFFERING) {
+                statusDot.className = 'w-2.5 h-2.5 rounded-full bg-blue-400 animate-ping';
+                statusText.textContent = 'BUFFERING · 緩衝載入中...';
+            } else if (state === YT.PlayerState.ENDED) {
+                // CRITICAL: Immediately intercept ENDED state so YouTube never shows or autoplays unrelated videos
+                handleTrackEnded();
+            }
+        }
+
+        function onPlayerError(event) {
+            console.warn('YouTube Player Error Code:', event.data);
+            showToast('此影片因版權限制無法嵌入播放，已自動為您跳至下一首', 'warning');
+            setTimeout(() => {
+                playNext(true);
+            }, 900);
+        }
+
+        /**************************************************************
+         * 5. PLAYBACK ENGINE & ARTIST WHITELIST QUEUE MANAGEMENT
+         **************************************************************/
+        function getFilteredQueue() {
+            if (!selectedArtists || selectedArtists.length === 0) {
+                return playlist;
+            }
+            return playlist.filter(track => selectedArtists.includes(track.artist));
+        }
+
+        function handleTrackEnded() {
+            const activeQueue = getFilteredQueue();
+            if (activeQueue.length === 0) return;
+
+            if (loopMode === 'one') {
+                // Replay current track immediately
+                ytPlayer.seekTo(0);
+                ytPlayer.playVideo();
+                return;
+            }
+
+            playNext(false);
+        }
+
+        function playTrackById(trackId) {
+            const track = playlist.find(t => t.id === trackId);
+            if (!track) return;
+
+            // If artist filter is active and user clicks a song from a non-selected artist, auto-include that artist
+            if (selectedArtists.length > 0 && !selectedArtists.includes(track.artist)) {
+                selectedArtists.push(track.artist);
+                saveStateToStorage();
+                renderArtistChips();
+                showToast(`已將「${track.artist}」加入目前播放白名單`, 'info');
+            }
+
+            currentTrackId = track.id;
+            updateNowPlayingUI(track);
+            renderPlaylist();
+
+            if (isPlayerReady && ytPlayer && typeof ytPlayer.loadVideoById === 'function') {
+                ytPlayer.loadVideoById(track.videoId);
+            }
+        }
+
+        function togglePlayPause() {
+            if (!isPlayerReady || !ytPlayer) return;
+            const activeQueue = getFilteredQueue();
+            if (activeQueue.length === 0) {
+                showToast('目前清單中沒有可播放的歌曲，請先新增歌曲或解除歌手篩選', 'warning');
+                return;
+            }
+
+            if (!currentTrackId) {
+                playTrackById(activeQueue[0].id);
+                return;
+            }
+
+            const state = ytPlayer.getPlayerState();
+            if (state === YT.PlayerState.PLAYING) {
+                ytPlayer.pauseVideo();
+            } else {
+                ytPlayer.playVideo();
+            }
+        }
+
+        function playNext(isManualClick = false) {
+            const activeQueue = getFilteredQueue();
+            if (activeQueue.length === 0) {
+                showToast('目前篩選條件下沒有可播放的歌曲', 'warning');
+                return;
+            }
+
+            const currentIndex = activeQueue.findIndex(t => t.id === currentTrackId);
+
+            if (isShuffle && activeQueue.length > 1) {
+                let randomIndex = currentIndex;
+                while (randomIndex === currentIndex) {
+                    randomIndex = Math.floor(Math.random() * activeQueue.length);
+                }
+                playTrackById(activeQueue[randomIndex].id);
+                return;
+            }
+
+            const nextIndex = currentIndex + 1;
+            if (nextIndex < activeQueue.length) {
+                playTrackById(activeQueue[nextIndex].id);
+            } else {
+                // Reached end of queue
+                if (loopMode === 'all' || isManualClick) {
+                    playTrackById(activeQueue[0].id);
+                } else {
+                    isPlaying = false;
+                    updatePlayPauseUI(false);
+                    showToast('已播放完清單最後一首歌曲', 'info');
+                }
+            }
+        }
+
+        function playPrevious() {
+            const activeQueue = getFilteredQueue();
+            if (activeQueue.length === 0) return;
+
+            // If track has played more than 4 seconds, restart track
+            if (isPlayerReady && ytPlayer && ytPlayer.getCurrentTime && ytPlayer.getCurrentTime() > 4) {
+                ytPlayer.seekTo(0);
+                return;
+            }
+
+            const currentIndex = activeQueue.findIndex(t => t.id === currentTrackId);
+            const prevIndex = currentIndex > 0 ? currentIndex - 1 : activeQueue.length - 1;
+            playTrackById(activeQueue[prevIndex].id);
+        }
+
+        function toggleShuffle() {
+            isShuffle = !isShuffle;
+            saveStateToStorage();
+            updateTransportButtonsUI();
+            showToast(isShuffle ? '已開啟隨機播放 (僅限白名單內歌曲)' : '已切換為依序播放', 'info');
+        }
+
+        function cycleLoopMode() {
+            if (loopMode === 'all') {
+                loopMode = 'one';
+                showToast('循環模式：單曲循環 (Loop One)', 'info');
+            } else if (loopMode === 'one') {
+                loopMode = 'off';
+                showToast('循環模式：播完即停 (Loop Off)', 'info');
+            } else {
+                loopMode = 'all';
+                showToast('循環模式：全清單循環 (Loop All)', 'info');
+            }
+            saveStateToStorage();
+            updateTransportButtonsUI();
+        }
+
+        function updateTransportButtonsUI() {
+            const shuffleBtn = document.getElementById('shuffleBtn');
+            if (isShuffle) {
+                shuffleBtn.className = 'p-2.5 rounded-xl text-amber-400 bg-amber-500/15 hover:bg-obsidian-800 transition relative';
+            } else {
+                shuffleBtn.className = 'p-2.5 rounded-xl text-gray-400 hover:text-white hover:bg-obsidian-800 transition relative';
+            }
+
+            const loopBtn = document.getElementById('loopBtn');
+            const loopOneBadge = document.getElementById('loopOneBadge');
+            if (loopMode === 'all') {
+                loopBtn.className = 'p-2.5 rounded-xl text-amber-400 bg-amber-500/15 hover:bg-obsidian-800 transition relative';
+                loopBtn.title = '循環模式：全清單循環';
+                loopOneBadge.classList.add('hidden');
+            } else if (loopMode === 'one') {
+                loopBtn.className = 'p-2.5 rounded-xl text-amber-400 bg-amber-500/15 hover:bg-obsidian-800 transition relative';
+                loopBtn.title = '循環模式：單曲循環';
+                loopOneBadge.classList.remove('hidden');
+            } else {
+                loopBtn.className = 'p-2.5 rounded-xl text-gray-400 hover:text-white hover:bg-obsidian-800 transition relative';
+                loopBtn.title = '循環模式：關閉';
+                loopOneBadge.classList.add('hidden');
+            }
+        }
+
+        function updatePlayPauseUI(playing) {
+            const icon = document.getElementById('playPauseIcon');
+            const eq = document.getElementById('equalizerIndicator');
+            const vinylDisc = document.getElementById('vinylDisc');
+            const vinylGlow = document.getElementById('vinylGlow');
+
+            if (playing) {
+                icon.setAttribute('data-lucide', 'pause');
+                icon.classList.remove('ml-0.5');
+                eq.classList.remove('eq-paused');
+                vinylDisc.classList.add('animate-spin-slow');
+                vinylGlow.classList.remove('opacity-0');
+            } else {
+                icon.setAttribute('data-lucide', 'play');
+                icon.classList.add('ml-0.5');
+                eq.classList.add('eq-paused');
+                vinylDisc.classList.remove('animate-spin-slow');
+                vinylGlow.classList.add('opacity-0');
+            }
+            lucide.createIcons();
+            renderPlaylist();
+        }
+
+        function updateNowPlayingUI(track) {
+            if (!track) {
+                document.getElementById('nowPlayingTitle').textContent = '目前沒有選擇歌曲';
+                document.getElementById('nowPlayingArtist').textContent = '無';
+                document.getElementById('nowPlayingIndex').textContent = '-- / --';
+                return;
+            }
+
+            const activeQueue = getFilteredQueue();
+            const idx = activeQueue.findIndex(t => t.id === track.id);
+
+            document.getElementById('nowPlayingTitle').textContent = track.title;
+            document.getElementById('nowPlayingArtist').textContent = track.artist;
+            document.getElementById('nowPlayingIndex').textContent = idx !== -1 ? `${idx + 1} / ${activeQueue.length}` : `-- / ${activeQueue.length}`;
+
+            const thumbUrl = `https://i.ytimg.com/vi/${track.videoId}/hqdefault.jpg`;
+            const vinylThumb = document.getElementById('vinylThumb');
+            vinylThumb.src = thumbUrl;
+            vinylThumb.onerror = () => {
+                vinylThumb.src = 'https://placehold.co/200x200/181b26/f59e0b?text=Music';
+            };
+        }
+
+        /**************************************************************
+         * 6. PROGRESS BAR, VOLUME & AUDIO FOCUS MODE
+         **************************************************************/
+        function startProgressTimer() {
+            if (progressInterval) clearInterval(progressInterval);
+            progressInterval = setInterval(() => {
+                if (!isPlayerReady || !ytPlayer || isSeeking) return;
+                if (typeof ytPlayer.getCurrentTime !== 'function') return;
+
+                const current = ytPlayer.getCurrentTime() || 0;
+                const duration = ytPlayer.getDuration() || 0;
+
+                if (duration > 0) {
+                    const percent = (current / duration) * 100;
+                    document.getElementById('progressBar').value = percent;
+                    document.getElementById('currentTimeText').textContent = formatTime(current);
+                    document.getElementById('durationTimeText').textContent = formatTime(duration);
+                }
+            }, 500);
+        }
+
+        function onSeekInput(percent) {
+            isSeeking = true;
+            if (!isPlayerReady || !ytPlayer) return;
+            const duration = ytPlayer.getDuration() || 0;
+            const targetTime = (percent / 100) * duration;
+            document.getElementById('currentTimeText').textContent = formatTime(targetTime);
+        }
+
+        function onSeekChange(percent) {
+            if (isPlayerReady && ytPlayer && ytPlayer.getDuration) {
+                const duration = ytPlayer.getDuration() || 0;
+                const targetTime = (percent / 100) * duration;
+                ytPlayer.seekTo(targetTime, true);
+            }
+            isSeeking = false;
+        }
+
+        function changeVolume(val) {
+            document.getElementById('volumeValue').textContent = `${val}%`;
+            if (isPlayerReady && ytPlayer) {
+                ytPlayer.unMute();
+                ytPlayer.setVolume(Number(val));
+            }
+        }
+
+        function toggleMute() {
+            if (!isPlayerReady || !ytPlayer) return;
+            const icon = document.getElementById('volumeIcon');
+            if (ytPlayer.isMuted()) {
+                ytPlayer.unMute();
+                icon.setAttribute('data-lucide', 'volume-2');
+            } else {
+                ytPlayer.mute();
+                icon.setAttribute('data-lucide', 'volume-x');
+            }
+            lucide.createIcons();
+        }
+
+        function toggleAudioFocusMode() {
+            isAudioFocusMode = !isAudioFocusMode;
+            saveStateToStorage();
+            applyAudioFocusUI();
+        }
+
+        function applyAudioFocusUI() {
+            const vinylOverlay = document.getElementById('vinylOverlay');
+            const focusModeText = document.getElementById('focusModeText');
+            const focusModeBtn = document.getElementById('focusModeBtn');
+
+            if (isAudioFocusMode) {
+                vinylOverlay.classList.remove('hidden');
+                focusModeText.textContent = '顯示 MV 畫面';
+                focusModeBtn.className = 'flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/40 transition';
+            } else {
+                vinylOverlay.classList.add('hidden');
+                focusModeText.textContent = '純音訊專注模式';
+                focusModeBtn.className = 'flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md bg-obsidian-800 hover:bg-obsidian-700 text-gray-300 border border-obsidian-700 transition';
+            }
+        }
+
+        function formatTime(sec) {
+            const s = Math.floor(sec);
+            const mins = Math.floor(s / 60);
+            const secs = s % 60;
+            return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+        }
+
+        /**************************************************************
+         * 7. URL PARSING & OEMBED METADATA AUTO-FETCH
+         **************************************************************/
+        function extractYouTubeVideoId(input) {
+            if (!input) return null;
+            const trimmed = input.trim();
+
+            // Direct 11-char video ID
+            if (/^[a-zA-Z0-9_-]{11}$/.test(trimmed)) {
+                return trimmed;
+            }
+
+            // Standard & mobile & shorts URL patterns
+            const regExp = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?|shorts)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/;
+            const match = trimmed.match(regExp);
+            return match ? match[1] : null;
+        }
+
+        let autoFetchDebounce = null;
+        function handleUrlPasteAutoFetch(urlVal) {
+            clearTimeout(autoFetchDebounce);
+            const videoId = extractYouTubeVideoId(urlVal);
+            if (!videoId) return;
+
+            autoFetchDebounce = setTimeout(() => {
+                const titleInput = document.getElementById('titleInput');
+                const artistInput = document.getElementById('artistInput');
+                if (!titleInput.value.trim() && !artistInput.value.trim()) {
+                    fetchMetadataFromInput(true);
+                }
+            }, 350);
+        }
+
+        async function fetchMetadataFromInput(silent = false) {
+            const urlInput = document.getElementById('ytUrlInput').value;
+            const videoId = extractYouTubeVideoId(urlInput);
+
+            if (!videoId) {
+                if (!silent) showToast('請先輸入有效的 YouTube 影片網址或 11 碼 ID', 'error');
+                return;
+            }
+
+            const btn = document.getElementById('fetchMetaBtn');
+            const originalHTML = btn.innerHTML;
+            btn.innerHTML = `<i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i><span>讀取中...</span>`;
+            lucide.createIcons();
+
+            try {
+                const response = await fetch(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${videoId}`);
+                const data = await response.json();
+
+                if (data && data.title) {
+                    let rawTitle = data.title;
+                    let guessedArtist = data.author_name ? data.author_name.replace(/\s*-\s*Topic$/i, '').trim() : '';
+                    let guessedSong = rawTitle;
+
+                    // Smart parsing for common Chinese/Asian MV titles like "周杰倫 Jay Chou【晴天】Official MV" or "Artist - Song"
+                    const bracketMatch = rawTitle.match(/^(.+?)\s*【(.+?)】/);
+                    if (bracketMatch) {
+                        guessedArtist = bracketMatch[1].trim();
+                        guessedSong = bracketMatch[2].trim();
+                    } else if (rawTitle.includes(' - ')) {
+                        const parts = rawTitle.split(' - ');
+                        guessedArtist = parts[0].trim();
+                        guessedSong = parts.slice(1).join(' - ').replace(/\(Official.*?\)|\[Official.*?\]|Official\s*MV|HD/gi, '').trim();
+                    }
+
+                    document.getElementById('titleInput').value = guessedSong;
+                    if (!document.getElementById('artistInput').value.trim()) {
+                        document.getElementById('artistInput').value = guessedArtist || '自訂歌手';
+                    }
+
+                    if (!silent) showToast('已自動帶入歌曲名稱與歌手！可自由微調名稱', 'success');
+                } else {
+                    if (!silent) showToast('無法自動抓取標題，請手動輸入歌手與歌名', 'warning');
+                }
+            } catch (error) {
+                if (!silent) showToast('網路連線無法抓取標題，請手動輸入歌名與歌手', 'warning');
+            } finally {
+                btn.innerHTML = originalHTML;
+                lucide.createIcons();
+            }
+        }
+
+        function handleAddTrack(event) {
+            event.preventDefault();
+            const urlVal = document.getElementById('ytUrlInput').value;
+            const artistVal = document.getElementById('artistInput').value.trim();
+            const titleVal = document.getElementById('titleInput').value.trim();
+
+            const videoId = extractYouTubeVideoId(urlVal);
+            if (!videoId) {
+                showToast('YouTube 網址格式不正確，請確認網址包含 watch?v= 或 youtu.be/', 'error');
+                return;
+            }
+
+            // Prevent exact duplicate videoId
+            const duplicate = playlist.find(t => t.videoId === videoId);
+            if (duplicate) {
+                showToast(`此歌曲已在清單中：「${duplicate.title}」`, 'warning');
+                return;
+            }
+
+            const newTrack = {
+                id: 'track-' + Date.now(),
+                videoId,
+                title: titleVal,
+                artist: artistVal
+            };
+
+            playlist.push(newTrack);
+
+            // If artist whitelist is active, automatically include the newly added artist so user sees it right away
+            if (selectedArtists.length > 0 && !selectedArtists.includes(artistVal)) {
+                selectedArtists.push(artistVal);
+            }
+
+            saveStateToStorage();
+            renderArtistChips();
+            renderPlaylist();
+
+            // Clear form
+            document.getElementById('ytUrlInput').value = '';
+            document.getElementById('titleInput').value = '';
+
+            showToast(`已成功加入：${artistVal} - ${titleVal}`, 'success');
+
+            // If this is the only track, load it immediately
+            if (playlist.length === 1) {
+                playTrackById(newTrack.id);
+            }
+        }
+
+        /**************************************************************
+         * 8. ARTIST WHITELIST FILTER UI & PLAYLIST RENDERING
+         **************************************************************/
+        function getAllUniqueArtists() {
+            const map = new Map();
+            playlist.forEach(t => {
+                map.set(t.artist, (map.get(t.artist) || 0) + 1);
+            });
+            return Array.from(map.entries()); // [[artistName, count], ...]
+        }
+
+        function toggleArtistFilter(artistName) {
+            const idx = selectedArtists.indexOf(artistName);
+            if (idx > -1) {
+                selectedArtists.splice(idx, 1);
+            } else {
+                selectedArtists.push(artistName);
+            }
+            saveStateToStorage();
+            renderArtistChips();
+            renderPlaylist();
+
+            // Check if current playing song belongs to allowed artists; if not, jump to first allowed song
+            const activeQueue = getFilteredQueue();
+            if (activeQueue.length > 0 && !activeQueue.some(t => t.id === currentTrackId)) {
+                playTrackById(activeQueue[0].id);
+            }
+        }
+
+        function resetArtistFilters() {
+            selectedArtists = [];
+            saveStateToStorage();
+            renderArtistChips();
+            renderPlaylist();
+            showToast('已顯示清單內所有歌手的歌曲', 'info');
+        }
+
+        function renderArtistChips() {
+            const container = document.getElementById('artistChipsContainer');
+            const datalist = document.getElementById('existingArtistsList');
+            const activeFilterHint = document.getElementById('activeFilterHint');
+            const resetBtn = document.getElementById('resetArtistBtn');
+
+            const artistsWithCounts = getAllUniqueArtists();
+
+            // Clean up any stale selectedArtists no longer in playlist
+            const validArtistNames = artistsWithCounts.map(a => a[0]);
+            selectedArtists = selectedArtists.filter(a => validArtistNames.includes(a));
+
+            // Populate datalist for autocomplete when adding tracks
+            datalist.innerHTML = validArtistNames.map(name => `<option value="${escapeHtml(name)}">`).join('');
+
+            if (artistsWithCounts.length === 0) {
+                container.innerHTML = `<span class="text-xs text-gray-500 italic">尚未新增任何歌手，請從左側表單新增歌曲。</span>`;
+                activeFilterHint.textContent = '目前清單無歌手';
+                resetBtn.classList.add('hidden');
+                return;
+            }
+
+            if (selectedArtists.length === 0) {
+                activeFilterHint.textContent = `目前播放：全部清單歌手 (${artistsWithCounts.length} 位)`;
+                resetBtn.classList.add('hidden');
+            } else {
+                activeFilterHint.textContent = `已鎖定僅播放：${selectedArtists.join('、')}`;
+                resetBtn.classList.remove('hidden');
+            }
+
+            const allBtnClass = selectedArtists.length === 0
+                ? 'bg-amber-500 text-obsidian-950 font-semibold border-amber-400 shadow-md shadow-amber-500/20'
+                : 'bg-obsidian-950 text-gray-400 border-obsidian-700 hover:border-obsidian-600 hover:text-gray-200';
+
+            let html = `
+                <button onclick="resetArtistFilters()" class="px-3 py-1.5 rounded-xl text-xs border transition flex items-center gap-1.5 ${allBtnClass}">
+                    <i data-lucide="users" class="w-3.5 h-3.5"></i>
+                    <span>全部清單歌手 (${playlist.length})</span>
+                </button>
+            `;
+
+            artistsWithCounts.forEach(([artist, count]) => {
+                const isSelected = selectedArtists.includes(artist);
+                const chipClass = isSelected
+                    ? 'bg-amber-500 text-obsidian-950 font-semibold border-amber-400 shadow-md shadow-amber-500/20'
+                    : 'bg-obsidian-950 text-gray-300 border-obsidian-700 hover:border-amber-500/50 hover:text-white';
+
+                html += `
+                    <button onclick="toggleArtistFilter('${escapeJsString(artist)}')" class="px-3 py-1.5 rounded-xl text-xs border transition flex items-center gap-1.5 ${chipClass}">
+                        <span>${escapeHtml(artist)}</span>
+                        <span class="text-[10px] font-mono px-1.5 py-0.2 rounded-full ${isSelected ? 'bg-obsidian-950/20 text-obsidian-950' : 'bg-obsidian-800 text-gray-400'}">${count}</span>
+                    </button>
+                `;
+            });
+
+            container.innerHTML = html;
+            lucide.createIcons();
+        }
+
+        function renderPlaylist() {
+            const container = document.getElementById('playlistContainer');
+            const badge = document.getElementById('queueCountBadge');
+            const searchQuery = (document.getElementById('searchInput').value || '').trim().toLowerCase();
+
+            const activeQueue = getFilteredQueue();
+            const displayedTracks = activeQueue.filter(track => {
+                if (!searchQuery) return true;
+                return track.title.toLowerCase().includes(searchQuery) ||
+                       track.artist.toLowerCase().includes(searchQuery);
+            });
+
+            badge.textContent = `${activeQueue.length} 首可播`;
+
+            if (displayedTracks.length === 0) {
+                container.innerHTML = `
+                    <div class="py-16 flex flex-col items-center justify-center text-center px-4">
+                        <div class="w-12 h-12 rounded-2xl bg-obsidian-800 flex items-center justify-center text-gray-500 mb-3">
+                            <i data-lucide="music-2" class="w-6 h-6"></i>
+                        </div>
+                        <p class="text-sm font-medium text-gray-300">目前沒有符合條件的歌曲</p>
+                        <p class="text-xs text-gray-500 mt-1">請從左側表單貼上 YouTube 網址新增您喜愛的歌曲，或調整上方歌手篩選條件。</p>
+                    </div>
+                `;
+                lucide.createIcons();
+                return;
+            }
+
+            container.innerHTML = displayedTracks.map((track, idx) => {
+                const isCurrent = track.id === currentTrackId;
+                const rowBg = isCurrent
+                    ? 'bg-amber-500/10 border-l-4 border-l-amber-400 pl-3'
+                    : 'hover:bg-obsidian-800/50 pl-4';
+
+                return `
+                    <div class="group py-3 pr-3 rounded-xl transition flex items-center justify-between gap-3 ${rowBg}">
+                        <!-- Left: Clickable Track Info -->
+                        <div onclick="playTrackById('${track.id}')" class="flex items-center gap-3.5 min-w-0 flex-1 cursor-pointer">
+                            <!-- Index or Playing Indicator -->
+                            <div class="w-6 text-center shrink-0">
+                                ${isCurrent
+                                    ? `<i data-lucide="${isPlaying ? 'volume-2' : 'disc'}" class="w-4 h-4 text-amber-400 mx-auto ${isPlaying ? 'animate-pulse' : ''}"></i>`
+                                    : `<span class="text-xs font-mono text-gray-500 group-hover:text-amber-400">${String(idx + 1).padStart(2, '0')}</span>`
+                                }
+                            </div>
+
+                            <!-- Thumbnail -->
+                            <div class="relative w-12 h-9 rounded-lg overflow-hidden bg-obsidian-950 shrink-0 border border-obsidian-700">
+                                <img src="https://i.ytimg.com/vi/${track.videoId}/default.jpg" 
+                                     onerror="this.src='https://placehold.co/120x90/181b26/f59e0b?text=MV'"
+                                     alt="${escapeHtml(track.title)}" 
+                                     class="w-full h-full object-cover">
+                            </div>
+
+                            <!-- Title & Artist -->
+                            <div class="min-w-0 flex-1">
+                                <p class="text-sm font-medium truncate ${isCurrent ? 'text-amber-300 font-semibold' : 'text-gray-100 group-hover:text-white'}">
+                                    ${escapeHtml(track.title)}
+                                </p>
+                                <div class="flex items-center gap-2 mt-0.5">
+                                    <span class="text-xs text-gray-400 truncate">${escapeHtml(track.artist)}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Right: Reorder & Delete Actions -->
+                        <div class="flex items-center gap-1 opacity-75 group-hover:opacity-100 transition shrink-0">
+                            <button onclick="moveTrack('${track.id}', -1)" class="p-1.5 rounded-lg hover:bg-obsidian-700 text-gray-400 hover:text-white transition" title="往上移動">
+                                <i data-lucide="chevron-up" class="w-4 h-4"></i>
+                            </button>
+                            <button onclick="moveTrack('${track.id}', 1)" class="p-1.5 rounded-lg hover:bg-obsidian-700 text-gray-400 hover:text-white transition" title="往下移動">
+                                <i data-lucide="chevron-down" class="w-4 h-4"></i>
+                            </button>
+                            <button onclick="removeTrack('${track.id}')" class="p-1.5 rounded-lg hover:bg-red-500/20 text-gray-400 hover:text-red-400 transition" title="刪除此歌曲">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            lucide.createIcons();
+        }
+
+        function moveTrack(trackId, direction) {
+            const index = playlist.findIndex(t => t.id === trackId);
+            if (index === -1) return;
+            const targetIndex = index + direction;
+            if (targetIndex < 0 || targetIndex >= playlist.length) return;
+
+            const temp = playlist[index];
+            playlist[index] = playlist[targetIndex];
+            playlist[targetIndex] = temp;
+
+            saveStateToStorage();
+            renderPlaylist();
+        }
+
+        function removeTrack(trackId) {
+            const idx = playlist.findIndex(t => t.id === trackId);
+            if (idx === -1) return;
+            const removed = playlist[idx];
+            playlist.splice(idx, 1);
+
+            saveStateToStorage();
+            renderArtistChips();
+            renderPlaylist();
+            showToast(`已移除歌曲：${removed.title}`, 'info');
+
+            if (currentTrackId === trackId) {
+                const activeQueue = getFilteredQueue();
+                if (activeQueue.length > 0) {
+                    playTrackById(activeQueue[0].id);
+                } else {
+                    currentTrackId = null;
+                    updateNowPlayingUI(null);
+                    if (isPlayerReady && ytPlayer && ytPlayer.stopVideo) {
+                        ytPlayer.stopVideo();
+                    }
+                }
+            }
+        }
+
+        /**************************************************************
+         * 9. BACKUP, EXPORT, IMPORT & RESET MODALS
+         **************************************************************/
+        function openTransferModal() {
+            const modal = document.getElementById('transferModal');
+            const textarea = document.getElementById('shareCodeTextarea');
+            textarea.value = JSON.stringify(playlist, null, 2);
+            modal.classList.remove('hidden');
+        }
+
+        function closeTransferModal() {
+            document.getElementById('transferModal').classList.add('hidden');
+        }
+
+        function copyShareCode() {
+            const textarea = document.getElementById('shareCodeTextarea');
+            textarea.select();
+            document.execCommand('copy');
+            showToast('已複製歌單 JSON 代碼至剪貼簿！', 'success');
+        }
+
+        function importFromTextarea() {
+            const raw = document.getElementById('shareCodeTextarea').value.trim();
+            if (!raw) {
+                showToast('請先貼上有效的 JSON 歌單代碼', 'error');
+                return;
+            }
+            try {
+                const parsed = JSON.parse(raw);
+                if (!Array.isArray(parsed)) throw new Error('Format must be array');
+                const validTracks = parsed.filter(item => item && item.videoId && item.title && item.artist).map((item, i) => ({
+                    id: item.id || ('track-' + Date.now() + '-' + i),
+                    videoId: String(item.videoId).trim(),
+                    title: String(item.title).trim(),
+                    artist: String(item.artist).trim()
+                }));
+
+                if (validTracks.length === 0) {
+                    showToast('代碼中找不到有效的歌曲資料', 'error');
+                    return;
+                }
+
+                playlist = validTracks;
+                selectedArtists = [];
+                saveStateToStorage();
+                renderArtistChips();
+                renderPlaylist();
+                playTrackById(playlist[0].id);
+                closeTransferModal();
+                showToast(`成功匯入 ${validTracks.length} 首歌曲！`, 'success');
+            } catch (e) {
+                showToast('JSON 格式解析失敗，請確認複製的代碼完整無誤', 'error');
+            }
+        }
+
+        function exportJsonFile() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(playlist, null, 2));
+            const downloadAnchor = document.createElement('a');
+            const dateStr = new Date().toISOString().slice(0, 10);
+            downloadAnchor.setAttribute("href", dataStr);
+            downloadAnchor.setAttribute("download", `PureStream_Playlist_${dateStr}.json`);
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+            showToast('已下載歌單備份檔 (.json)', 'success');
+        }
+
+        function importJsonFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                document.getElementById('shareCodeTextarea').value = e.target.result;
+                importFromTextarea();
+            };
+            reader.readAsText(file);
+        }
+
+        function openClearConfirmModal() {
+            document.getElementById('clearConfirmModal').classList.remove('hidden');
+        }
+
+        function closeClearConfirmModal() {
+            document.getElementById('clearConfirmModal').classList.add('hidden');
+        }
+
+        function clearAllTracks() {
+            playlist = [];
+            selectedArtists = [];
+            currentTrackId = null;
+            saveStateToStorage();
+            renderArtistChips();
+            renderPlaylist();
+            updateNowPlayingUI(null);
+            if (isPlayerReady && ytPlayer && ytPlayer.stopVideo) {
+                ytPlayer.stopVideo();
+            }
+            closeClearConfirmModal();
+            showToast('已清空所有歌曲，現在可以新增您的專屬歌單', 'info');
+        }
+
+        function restoreDemoPlaylist() {
+            playlist = [...DEFAULT_DEMO_PLAYLIST];
+            selectedArtists = [];
+            saveStateToStorage();
+            renderArtistChips();
+            renderPlaylist();
+            playTrackById(playlist[0].id);
+            closeClearConfirmModal();
+            showToast('已還原預設示範歌單', 'success');
+        }
+
+        function openHelpModal() {
+            document.getElementById('helpModal').classList.remove('hidden');
+        }
+
+        function closeHelpModal() {
+            document.getElementById('helpModal').classList.add('hidden');
+        }
+
+        /**************************************************************
+         * 10. UTILITIES & TOAST NOTIFICATIONS
+         **************************************************************/
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+
+            let borderColor = 'border-amber-500/40';
+            let iconName = 'info';
+            let iconColor = 'text-amber-400';
+
+            if (type === 'success') {
+                borderColor = 'border-emerald-500/40';
+                iconName = 'check-circle-2';
+                iconColor = 'text-emerald-400';
+            } else if (type === 'error') {
+                borderColor = 'border-red-500/40';
+                iconName = 'alert-circle';
+                iconColor = 'text-red-400';
+            } else if (type === 'warning') {
+                borderColor = 'border-amber-500/50';
+                iconName = 'alert-triangle';
+                iconColor = 'text-amber-400';
+            }
+
+            toast.className = `pointer-events-auto flex items-center gap-2.5 px-4 py-3 rounded-xl bg-obsidian-900/95 backdrop-blur-md border ${borderColor} text-xs text-white shadow-xl transition-all duration-300 transform translate-y-2 opacity-0`;
+            toast.innerHTML = `
+                <i data-lucide="${iconName}" class="w-4 h-4 ${iconColor} shrink-0"></i>
+                <span class="leading-snug">${escapeHtml(message)}</span>
+            `;
+
+            container.appendChild(toast);
+            lucide.createIcons();
+
+            requestAnimationFrame(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            });
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 3500);
+        }
+
+        function escapeHtml(str) {
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function escapeJsString(str) {
+            return String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        }
+    </script>
+</body>
+</html>
